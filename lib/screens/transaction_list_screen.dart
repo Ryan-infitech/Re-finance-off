@@ -1,9 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/transaction_service.dart';
 import '../models/transaction_model.dart';
 import 'edit_transaction_screen.dart';
+import '../widgets/encrypted_image.dart';
 
 class TransactionListScreen extends StatefulWidget {
   const TransactionListScreen({super.key});
@@ -229,8 +229,8 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                     const SizedBox(height: 8),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
-                      child: Image.file(
-                        File(transaction.imagePath!),
+                      child: EncryptedImage(
+                        imagePath: transaction.imagePath!,
                         width: double.infinity,
                         fit: BoxFit.cover,
                       ),
