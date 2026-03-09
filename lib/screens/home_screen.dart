@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/pin_service.dart';
+import '../services/theme_service.dart';
 import '../services/transaction_service.dart';
 import '../models/transaction_model.dart';
 import 'add_transaction_screen.dart';
@@ -9,6 +9,7 @@ import 'transaction_list_screen.dart';
 import 'report_screen.dart';
 import 'pin_entry_screen.dart';
 import 'edit_transaction_screen.dart';
+import '../widgets/encrypted_image.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   };
   List<Transaction> _recentTransactions = [];
   bool _isLoading = true;
+  bool _isBalanceVisible = false;
 
   @override
   void initState() {
@@ -45,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
         await TransactionService.instance.getTransactions();
 
     setState(() {
-      _username = username ?? 'User';
+      _username = username;
       _financialSummary = summary;
       _recentTransactions = transactions.take(5).toList();
       _isLoading = false;
@@ -53,25 +55,55 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _lockApp() async {
+    final isBiometricAvailable =
+        await PinService.instance.isBiometricAvailable();
+    final isFingerprintEnabled =
+        await PinService.instance.isFingerprintEnabled();
+
+    if (!mounted) return;
+
+    bool fpEnabled = isFingerprintEnabled;
+
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Konfirmasi'),
-        content: const Text('Kunci aplikasi?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Konfirmasi'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Kunci aplikasi?'),
+              if (isBiometricAvailable) ...[
+                const SizedBox(height: 16),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Sidik Jari',
+                      style: TextStyle(fontSize: 14)),
+                  secondary: const Icon(Icons.fingerprint, size: 22),
+                  value: fpEnabled,
+                  onChanged: (value) {
+                    setDialogState(() => fpEnabled = value);
+                  },
+                ),
+              ],
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Kunci'),
-          ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Kunci'),
+            ),
+          ],
+        ),
       ),
     );
 
     if (confirm == true) {
+      await PinService.instance.setFingerprintEnabled(fpEnabled);
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
@@ -96,9 +128,9 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         height: MediaQuery.of(context).size.height * 0.75,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardTheme.color ?? Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
           children: [
@@ -240,8 +272,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           const SizedBox(height: 8),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: Image.file(
-                              File(transaction.imagePath!),
+                            child: EncryptedImage(
+                              imagePath: transaction.imagePath!,
                               width: double.infinity,
                               fit: BoxFit.cover,
                             ),
@@ -355,6 +387,17 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Dashboard'),
         actions: [
           IconButton(
+            icon: Icon(
+              ThemeService.instance.isDarkMode
+                  ? Icons.light_mode
+                  : Icons.dark_mode,
+            ),
+            onPressed: () {
+              ThemeService.instance.toggleTheme();
+            },
+            tooltip: 'Ganti Tema',
+          ),
+          IconButton(
             icon: const Icon(Icons.assessment),
             onPressed: () async {
               await Navigator.push(
@@ -398,16 +441,37 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Saldo',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 16,
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Saldo',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _isBalanceVisible = !_isBalanceVisible;
+                                    });
+                                  },
+                                  child: Icon(
+                                    _isBalanceVisible
+                                        ? Icons.visibility
+                                        : Icons.visibility_off,
+                                    color: Colors.white70,
+                                    size: 22,
+                                  ),
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              _formatCurrency(_financialSummary['balance']!),
+                              _isBalanceVisible
+                                  ? _formatCurrency(_financialSummary['balance']!)
+                                  : 'Rp ***',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 32,
