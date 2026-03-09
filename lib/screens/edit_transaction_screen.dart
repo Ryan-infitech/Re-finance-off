@@ -1,10 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
 import '../services/transaction_service.dart';
+import '../widgets/encrypted_image.dart';
 
 class EditTransactionScreen extends StatefulWidget {
   final Transaction transaction;
@@ -55,7 +55,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
     // Initialize with existing transaction data
     _type = widget.transaction.type;
     _category = widget.transaction.category;
-    _amountController.text = widget.transaction.amount.toStringAsFixed(0);
+    _amountController.text = _formatInitialAmount(widget.transaction.amount);
     _descriptionController.text = widget.transaction.description;
     _selectedDate = DateTime.parse(widget.transaction.date);
     _imagePath = widget.transaction.imagePath;
@@ -169,7 +169,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
     final result = await TransactionService.instance.updateTransaction(
       id: widget.transaction.id!,
       type: _type,
-      amount: double.parse(_amountController.text),
+      amount: double.parse(_amountController.text.replaceAll('.', '')),
       category: _category,
       description: _descriptionController.text,
       imagePath: _imagePath,
@@ -269,6 +269,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                       keyboardType: TextInputType.number,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
+                        _ThousandSeparatorFormatter(),
                       ],
                       decoration: const InputDecoration(
                         labelText: 'Jumlah',
@@ -279,11 +280,16 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                         if (value == null || value.isEmpty) {
                           return 'Jumlah tidak boleh kosong';
                         }
-                        if (double.tryParse(value) == null) {
+                        final raw = value.replaceAll('.', '');
+                        if (double.tryParse(raw) == null) {
                           return 'Jumlah harus berupa angka';
                         }
-                        if (double.parse(value) <= 0) {
+                        final amount = double.parse(raw);
+                        if (amount <= 0) {
                           return 'Jumlah harus lebih dari 0';
+                        }
+                        if (amount > 999999999999) {
+                          return 'Jumlah terlalu besar';
                         }
                         return null;
                       },
@@ -361,8 +367,8 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: Image.file(
-                              File(_imagePath!),
+                            child: EncryptedImage(
+                              imagePath: _imagePath!,
                               width: double.infinity,
                               height: 200,
                               fit: BoxFit.cover,
@@ -412,5 +418,46 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
               ),
             ),
     );
+  }
+
+  String _formatInitialAmount(double amount) {
+    final digits = amount.toStringAsFixed(0);
+    final result = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i > 0 && (digits.length - i) % 3 == 0) {
+        result.write('.');
+      }
+      result.write(digits[i]);
+    }
+    return result.toString();
+  }
+}
+
+class _ThousandSeparatorFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) return newValue;
+
+    final digits = newValue.text.replaceAll('.', '');
+    final formatted = _addThousandSeparator(digits);
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+
+  String _addThousandSeparator(String value) {
+    final result = StringBuffer();
+    for (var i = 0; i < value.length; i++) {
+      if (i > 0 && (value.length - i) % 3 == 0) {
+        result.write('.');
+      }
+      result.write(value[i]);
+    }
+    return result.toString();
   }
 }
