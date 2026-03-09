@@ -54,7 +54,6 @@ class TransactionService {
     try {
       return await DatabaseHelper.instance.getAllTransactions();
     } catch (e) {
-      print('Error getting transactions: ${e.toString()}');
       return [];
     }
   }
@@ -64,7 +63,6 @@ class TransactionService {
     try {
       return await DatabaseHelper.instance.getTransactionsByType(type);
     } catch (e) {
-      print('Error getting transactions by type: ${e.toString()}');
       return [];
     }
   }
@@ -169,7 +167,6 @@ class TransactionService {
         'balance': balance,
       };
     } catch (e) {
-      print('Error getting financial summary: ${e.toString()}');
       return {
         'income': 0.0,
         'expense': 0.0,
