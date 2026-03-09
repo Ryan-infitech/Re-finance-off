@@ -261,14 +261,6 @@ class _PinEntryScreenState extends State<PinEntryScreen> {
                 const SizedBox(height: 16),
 
                 Text(
-                  'Refinance#',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
                   'Masukkan PIN untuk melanjutkan',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Colors.grey,
