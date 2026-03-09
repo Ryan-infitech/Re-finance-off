@@ -1,8 +1,9 @@
-import 'dart:io';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/transaction_service.dart';
 import '../models/transaction_model.dart';
+import '../widgets/encrypted_image.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -11,7 +12,8 @@ class ReportScreen extends StatefulWidget {
   State<ReportScreen> createState() => _ReportScreenState();
 }
 
-class _ReportScreenState extends State<ReportScreen> {
+class _ReportScreenState extends State<ReportScreen>
+    with SingleTickerProviderStateMixin {
   DateTime _startDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime _endDate = DateTime.now();
   List<Transaction> _transactions = [];
@@ -23,11 +25,30 @@ class _ReportScreenState extends State<ReportScreen> {
   Map<String, double> _incomeByCategory = {};
   Map<String, double> _expenseByCategory = {};
   bool _isLoading = false;
+  late TabController _tabController;
+
+  static const List<Color> _chartColors = [
+    Color(0xFF4CAF50),
+    Color(0xFF2196F3),
+    Color(0xFFFF9800),
+    Color(0xFF9C27B0),
+    Color(0xFF00BCD4),
+    Color(0xFFE91E63),
+    Color(0xFF607D8B),
+    Color(0xFFFFEB3B),
+  ];
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
     _loadReport();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadReport() async {
@@ -35,18 +56,15 @@ class _ReportScreenState extends State<ReportScreen> {
       _isLoading = true;
     });
 
-    // Get all transactions
     final allTransactions =
         await TransactionService.instance.getTransactions();
 
-    // Filter by date range
     final filteredTransactions = allTransactions.where((transaction) {
       final transDate = DateTime.parse(transaction.date);
       return transDate.isAfter(_startDate.subtract(const Duration(days: 1))) &&
           transDate.isBefore(_endDate.add(const Duration(days: 1)));
     }).toList();
 
-    // Calculate summary
     double totalIncome = 0;
     double totalExpense = 0;
     Map<String, double> incomeCategories = {};
@@ -121,21 +139,36 @@ class _ReportScreenState extends State<ReportScreen> {
     return formatter.format(amount);
   }
 
+  String _formatCompact(double amount) {
+    if (amount >= 1000000000) {
+      return 'Rp ${(amount / 1000000000).toStringAsFixed(1)}M';
+    } else if (amount >= 1000000) {
+      return 'Rp ${(amount / 1000000).toStringAsFixed(1)}jt';
+    } else if (amount >= 1000) {
+      return 'Rp ${(amount / 1000).toStringAsFixed(0)}rb';
+    }
+    return _formatCurrency(amount);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cardColor = theme.cardTheme.color ?? theme.cardColor;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Laporan Keuangan'),
+        title: const Text('Laporan'),
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.calendar_month),
+            icon: const Icon(Icons.calendar_month_outlined, size: 22),
             onPressed: _selectMonth,
             tooltip: 'Pilih Bulan',
           ),
           IconButton(
-            icon: const Icon(Icons.date_range),
+            icon: const Icon(Icons.date_range_outlined, size: 22),
             onPressed: _selectDateRange,
-            tooltip: 'Pilih Rentang Tanggal',
+            tooltip: 'Pilih Rentang',
           ),
         ],
       ),
@@ -145,418 +178,38 @@ class _ReportScreenState extends State<ReportScreen> {
               onRefresh: _loadReport,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16.0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Date range card
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Periode',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${DateFormat('dd MMM yyyy').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Icon(
-                              Icons.calendar_today,
-                              color: Theme.of(context).primaryColor,
-                            ),
-                          ],
+                    // Period indicator
+                    Container(
+                      width: double.infinity,
+                      color: cardColor,
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                      child: Text(
+                        '${DateFormat('dd MMM').format(_startDate)} - ${DateFormat('dd MMM yyyy').format(_endDate)}',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 14,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
 
-                    // Summary cards
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Card(
-                            color: Colors.green.shade50,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Row(
-                                    children: [
-                                      Icon(
-                                        Icons.arrow_downward,
-                                        color: Colors.green,
-                                        size: 20,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Pemasukan',
-                                        style: TextStyle(
-                                          color: Colors.green,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    _formatCurrency(_summary['income']!),
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Card(
-                            color: Colors.red.shade50,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Row(
-                                    children: [
-                                      Icon(
-                                        Icons.arrow_upward,
-                                        color: Colors.red,
-                                        size: 20,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Pengeluaran',
-                                        style: TextStyle(
-                                          color: Colors.red,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    _formatCurrency(_summary['expense']!),
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
                     const SizedBox(height: 8),
 
-                    // Balance card
-                    Card(
-                      color: _summary['balance']! >= 0
-                          ? Colors.blue.shade50
-                          : Colors.orange.shade50,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Saldo Periode Ini',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              _formatCurrency(_summary['balance']!),
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: _summary['balance']! >= 0
-                                    ? Colors.blue
-                                    : Colors.orange,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+                    // Summary overview
+                    _buildSummarySection(),
 
-                    // Income by category
-                    if (_incomeByCategory.isNotEmpty) ...[
-                      Text(
-                        'Pemasukan per Kategori',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      const SizedBox(height: 12),
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            children: _incomeByCategory.entries.map((entry) {
-                              final percentage =
-                                  (entry.value / _summary['income']!) * 100;
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8.0),
-                                child: Column(
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          entry.key,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        Text(
-                                          _formatCurrency(entry.value),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.green,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    LinearProgressIndicator(
-                                      value: percentage / 100,
-                                      backgroundColor: Colors.grey.shade200,
-                                      color: Colors.green,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: Text(
-                                        '${percentage.toStringAsFixed(1)}%',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
+                    const SizedBox(height: 8),
 
-                    // Expense by category
-                    if (_expenseByCategory.isNotEmpty) ...[
-                      Text(
-                        'Pengeluaran per Kategori',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                      const SizedBox(height: 12),
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            children: _expenseByCategory.entries.map((entry) {
-                              final percentage =
-                                  (entry.value / _summary['expense']!) * 100;
-                              return Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 8.0),
-                                child: Column(
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          entry.key,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        Text(
-                                          _formatCurrency(entry.value),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.red,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    LinearProgressIndicator(
-                                      value: percentage / 100,
-                                      backgroundColor: Colors.grey.shade200,
-                                      color: Colors.red,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: Text(
-                                        '${percentage.toStringAsFixed(1)}%',
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
+                    // Chart section with tabs
+                    _buildChartSection(),
+
+                    const SizedBox(height: 8),
 
                     // Transaction list
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Detail Transaksi',
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                        ),
-                        Text(
-                          '${_transactions.length} transaksi',
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
+                    _buildTransactionSection(),
 
-                    _transactions.isEmpty
-                        ? const Card(
-                            child: Padding(
-                              padding: EdgeInsets.all(32.0),
-                              child: Center(
-                                child: Column(
-                                  children: [
-                                    Icon(
-                                      Icons.receipt_long,
-                                      size: 48,
-                                      color: Colors.grey,
-                                    ),
-                                    SizedBox(height: 16),
-                                    Text(
-                                      'Tidak ada transaksi\npada periode ini',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(color: Colors.grey),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          )
-                        : ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _transactions.length,
-                            itemBuilder: (context, index) {
-                              final transaction = _transactions[index];
-                              return Card(
-                                child: ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor:
-                                        transaction.type == 'income'
-                                            ? Colors.green.shade100
-                                            : Colors.red.shade100,
-                                    child: Icon(
-                                      transaction.type == 'income'
-                                          ? Icons.arrow_downward
-                                          : Icons.arrow_upward,
-                                      color: transaction.type == 'income'
-                                          ? Colors.green
-                                          : Colors.red,
-                                    ),
-                                  ),
-                                  title: Text(transaction.category),
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        transaction.description,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      if (transaction.imagePath != null)
-                                        const Row(
-                                          children: [
-                                            Icon(Icons.image,
-                                                size: 12, color: Colors.grey),
-                                            SizedBox(width: 4),
-                                            Text(
-                                              'Ada foto',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                    ],
-                                  ),
-                                  trailing: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        _formatCurrency(transaction.amount),
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: transaction.type == 'income'
-                                              ? Colors.green
-                                              : Colors.red,
-                                        ),
-                                      ),
-                                      Text(
-                                        DateFormat('dd MMM').format(
-                                            DateTime.parse(transaction.date)),
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall,
-                                      ),
-                                    ],
-                                  ),
-                                  onTap: () {
-                                    _showTransactionDetail(transaction);
-                                  },
-                                ),
-                              );
-                            },
-                          ),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
@@ -564,119 +217,507 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 
-  void _showTransactionDetail(Transaction transaction) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => SingleChildScrollView(
-          controller: scrollController,
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSummarySection() {
+    final balance = _summary['balance']!;
+    final isPositive = balance >= 0;
+
+    return Container(
+      color: Theme.of(context).cardTheme.color ?? Theme.of(context).cardColor,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          // Balance
+          Text(
+            _formatCurrency(balance),
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w700,
+              color: isPositive ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Saldo Periode',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade500,
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Income & Expense row
+          Row(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Detail Transaksi',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
+              Expanded(
+                child: _buildMiniStat(
+                  'Pemasukan',
+                  _summary['income']!,
+                  const Color(0xFF4CAF50),
+                  Icons.south_west_rounded,
+                ),
               ),
-              const Divider(),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Icon(
-                    transaction.type == 'income'
-                        ? Icons.arrow_downward
-                        : Icons.arrow_upward,
-                    color: transaction.type == 'income'
-                        ? Colors.green
-                        : Colors.red,
+              Container(
+                width: 1,
+                height: 48,
+                color: Colors.grey.shade200,
+              ),
+              Expanded(
+                child: _buildMiniStat(
+                  'Pengeluaran',
+                  _summary['expense']!,
+                  const Color(0xFFE53935),
+                  Icons.north_east_rounded,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStat(String label, double amount, Color color, IconData icon) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _formatCurrency(amount),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChartSection() {
+    final hasIncome = _incomeByCategory.isNotEmpty;
+    final hasExpense = _expenseByCategory.isNotEmpty;
+
+    if (!hasIncome && !hasExpense) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      color: Theme.of(context).cardTheme.color ?? Theme.of(context).cardColor,
+      child: Column(
+        children: [
+          // Tab bar
+          TabBar(
+            controller: _tabController,
+            labelColor: Theme.of(context).primaryColor,
+            unselectedLabelColor: Colors.grey,
+            indicatorSize: TabBarIndicatorSize.label,
+            dividerColor: Colors.grey.shade200,
+            tabs: const [
+              Tab(text: 'Pemasukan'),
+              Tab(text: 'Pengeluaran'),
+            ],
+          ),
+
+          SizedBox(
+            height: 320,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                hasIncome
+                    ? _buildDonutChart(
+                        _incomeByCategory, _summary['income']!, true)
+                    : _buildEmptyChart('Belum ada pemasukan'),
+                hasExpense
+                    ? _buildDonutChart(
+                        _expenseByCategory, _summary['expense']!, false)
+                    : _buildEmptyChart('Belum ada pengeluaran'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyChart(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.pie_chart_outline, size: 48, color: Colors.grey.shade300),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDonutChart(
+      Map<String, double> data, double total, bool isIncome) {
+    final entries = data.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          // Donut chart
+          Expanded(
+            flex: 5,
+            child: AspectRatio(
+              aspectRatio: 1,
+              child: PieChart(
+                PieChartData(
+                  sectionsSpace: 2,
+                  centerSpaceRadius: 40,
+                  sections: entries.asMap().entries.map((mapEntry) {
+                    final index = mapEntry.key;
+                    final entry = mapEntry.value;
+                    final percentage = (entry.value / total) * 100;
+                    return PieChartSectionData(
+                      color: _chartColors[index % _chartColors.length],
+                      value: entry.value,
+                      title: '${percentage.toStringAsFixed(0)}%',
+                      titleStyle: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                      radius: 45,
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 16),
+
+          // Legend
+          Expanded(
+            flex: 4,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: entries.asMap().entries.map((mapEntry) {
+                final index = mapEntry.key;
+                final entry = mapEntry.value;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: _chartColors[index % _chartColors.length],
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          entry.key,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        _formatCompact(entry.value),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTransactionSection() {
+    return Container(
+      color: Theme.of(context).cardTheme.color ?? Theme.of(context).cardColor,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Riwayat',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '${_transactions.length} transaksi',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (_transactions.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(40),
+              child: Column(
+                children: [
+                  Icon(Icons.receipt_long_outlined,
+                      size: 48, color: Colors.grey.shade300),
+                  const SizedBox(height: 12),
                   Text(
-                    transaction.type == 'income' ? 'Pemasukan' : 'Pengeluaran',
+                    'Tidak ada transaksi',
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: transaction.type == 'income'
-                          ? Colors.green
-                          : Colors.red,
+                      color: Colors.grey.shade400,
+                      fontSize: 14,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-              _buildDetailRow('Jumlah', _formatCurrency(transaction.amount)),
-              _buildDetailRow('Kategori', transaction.category),
-              _buildDetailRow(
-                'Tanggal',
-                DateFormat('EEEE, dd MMMM yyyy', 'id_ID')
-                    .format(DateTime.parse(transaction.date)),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _transactions.length,
+              separatorBuilder: (_, __) => Divider(
+                height: 1,
+                indent: 68,
+                color: Colors.grey.shade100,
               ),
-              _buildDetailRow('Deskripsi', transaction.description),
-              if (transaction.imagePath != null) ...[
-                const SizedBox(height: 16),
-                const Text(
-                  'Foto',
+              itemBuilder: (context, index) {
+                final t = _transactions[index];
+                final isIncome = t.type == 'income';
+                return InkWell(
+                  onTap: () => _showTransactionDetail(t),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 14),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: isIncome
+                                ? const Color(0xFFE8F5E9)
+                                : const Color(0xFFFFEBEE),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            isIncome
+                                ? Icons.south_west_rounded
+                                : Icons.north_east_rounded,
+                            size: 18,
+                            color: isIncome
+                                ? const Color(0xFF4CAF50)
+                                : const Color(0xFFE53935),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                t.category,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                DateFormat('dd MMM yyyy')
+                                    .format(DateTime.parse(t.date)),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '${isIncome ? '+' : '-'} ${_formatCurrency(t.amount)}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isIncome
+                                ? const Color(0xFF4CAF50)
+                                : const Color(0xFFE53935),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showTransactionDetail(Transaction transaction) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardTheme.color ?? Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Handle
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Amount
+            Center(
+              child: Text(
+                _formatCurrency(transaction.amount),
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: transaction.type == 'income'
+                      ? const Color(0xFF4CAF50)
+                      : const Color(0xFFE53935),
+                ),
+              ),
+            ),
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: transaction.type == 'income'
+                      ? const Color(0xFFE8F5E9)
+                      : const Color(0xFFFFEBEE),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  transaction.type == 'income' ? 'Pemasukan' : 'Pengeluaran',
                   style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 14,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: transaction.type == 'income'
+                        ? const Color(0xFF4CAF50)
+                        : const Color(0xFFE53935),
                   ),
                 ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.file(
-                    File(transaction.imagePath!),
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
+            Divider(color: Colors.grey.shade200),
+            const SizedBox(height: 16),
+
+            _buildDetailItem(
+                Icons.category_outlined, 'Kategori', transaction.category),
+            _buildDetailItem(
+              Icons.calendar_today_outlined,
+              'Tanggal',
+              DateFormat('EEEE, dd MMMM yyyy', 'id_ID')
+                  .format(DateTime.parse(transaction.date)),
+            ),
+            _buildDetailItem(Icons.notes_outlined, 'Deskripsi',
+                transaction.description),
+
+            if (transaction.imagePath != null &&
+                transaction.imagePath!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: EncryptedImage(
+                  imagePath: transaction.imagePath!,
+                  width: double.infinity,
+                  height: 200,
+                  fit: BoxFit.cover,
                 ),
-              ],
+              ),
             ],
-          ),
+            const SizedBox(height: 16),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _buildDetailItem(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0),
-      child: Column(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
+          Icon(icon, size: 18, color: Colors.grey.shade400),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ],
       ),
