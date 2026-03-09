@@ -1,9 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/transaction_service.dart';
 import '../services/image_service.dart';
+import '../widgets/encrypted_image.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final String type; // 'income' or 'expense'
@@ -127,7 +128,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
       final result = await TransactionService.instance.createTransaction(
         type: widget.type,
-        amount: double.parse(_amountController.text),
+        amount: double.parse(_amountController.text.replaceAll('.', '')),
         category: _selectedCategory!,
         description: _descriptionController.text,
         imagePath: _imagePath,
@@ -149,6 +150,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         );
         Navigator.pop(context);
       } else {
+        // Cleanup orphaned image if save failed
+        if (_imagePath != null) {
+          await ImageService.instance.deleteImage(_imagePath!);
+          setState(() => _imagePath = null);
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result['message']),
@@ -179,6 +185,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               TextFormField(
                 controller: _amountController,
                 keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  _ThousandSeparatorFormatter(),
+                ],
                 decoration: InputDecoration(
                   labelText: 'Jumlah',
                   prefixText: 'Rp ',
@@ -192,11 +202,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   if (value == null || value.isEmpty) {
                     return 'Jumlah tidak boleh kosong';
                   }
-                  if (double.tryParse(value) == null) {
+                  final raw = value.replaceAll('.', '');
+                  if (double.tryParse(raw) == null) {
                     return 'Jumlah harus berupa angka';
                   }
-                  if (double.parse(value) <= 0) {
+                  final amount = double.parse(raw);
+                  if (amount <= 0) {
                     return 'Jumlah harus lebih dari 0';
+                  }
+                  if (amount > 999999999999) {
+                    return 'Jumlah terlalu besar';
                   }
                   return null;
                 },
@@ -279,8 +294,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           children: [
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                File(_imagePath!),
+                              child: EncryptedImage(
+                                imagePath: _imagePath!,
                                 height: 200,
                                 width: double.infinity,
                                 fit: BoxFit.cover,
@@ -348,5 +363,34 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         ),
       ),
     );
+  }
+}
+
+class _ThousandSeparatorFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) return newValue;
+
+    final digits = newValue.text.replaceAll('.', '');
+    final formatted = _addThousandSeparator(digits);
+
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+
+  String _addThousandSeparator(String value) {
+    final result = StringBuffer();
+    for (var i = 0; i < value.length; i++) {
+      if (i > 0 && (value.length - i) % 3 == 0) {
+        result.write('.');
+      }
+      result.write(value[i]);
+    }
+    return result.toString();
   }
 }
