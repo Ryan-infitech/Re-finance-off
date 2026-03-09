@@ -20,6 +20,8 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
   bool _isLoading = false;
   bool _obscurePin = true;
   bool _obscureConfirmPin = true;
+  bool _enableFingerprint = false;
+  bool _isBiometricAvailable = false;
 
   final List<String> _securityQuestions = [
     'Siapa nama hewan peliharaan pertama Anda?',
@@ -29,6 +31,19 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
     'Siapa nama sahabat kecil Anda?',
     'Apa nama sekolah dasar Anda?',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometric();
+  }
+
+  Future<void> _checkBiometric() async {
+    final available = await PinService.instance.isBiometricAvailable();
+    setState(() {
+      _isBiometricAvailable = available;
+    });
+  }
 
   @override
   void dispose() {
@@ -66,6 +81,8 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
     if (!mounted) return;
 
     if (success) {
+      await PinService.instance.setFingerprintEnabled(_enableFingerprint);
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -82,20 +99,22 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 32),
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 32),
 
-                // Logo
-                Image.asset(
-                  'assets/images/refinance.png',
+                  // Logo
+                  Image.asset(
+                    'assets/images/refinance.png',
                   width: 100,
                   height: 100,
                   errorBuilder: (context, error, stackTrace) {
@@ -245,6 +264,21 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
                 ),
                 const SizedBox(height: 32),
 
+                // Fingerprint option
+                if (_isBiometricAvailable)
+                  Card(
+                    child: SwitchListTile(
+                      title: const Text('Gunakan Sidik Jari'),
+                      subtitle: const Text('Login dengan sidik jari'),
+                      secondary: const Icon(Icons.fingerprint),
+                      value: _enableFingerprint,
+                      onChanged: (value) {
+                        setState(() => _enableFingerprint = value);
+                      },
+                    ),
+                  ),
+                if (_isBiometricAvailable) const SizedBox(height: 16),
+
                 // Setup button
                 ElevatedButton(
                   onPressed: _isLoading ? null : _setupPin,
@@ -263,6 +297,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
             ),
           ),
         ),
+      ),
       ),
     );
   }
