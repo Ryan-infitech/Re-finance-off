@@ -41,50 +41,14 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
-
+class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    
-    // Setup animations
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeIn,
-      ),
-    );
-
-    _scaleAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOutBack,
-      ),
-    );
-
-    // Start animation
-    _animationController.forward();
-    
     _checkLoginStatus();
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    super.dispose();
-  }
-
   Future<void> _checkLoginStatus() async {
-    // Perpanjang durasi splash screen menjadi 3 detik
     await Future.delayed(const Duration(seconds: 3));
     
     final isPinSetup = await PinService.instance.isPinSetup();
@@ -109,52 +73,9 @@ class _SplashScreenState extends State<SplashScreen>
     return Scaffold(
       backgroundColor: Colors.white,
       body: Center(
-        child: AnimatedBuilder(
-          animation: _animationController,
-          builder: (context, child) {
-            return FadeTransition(
-              opacity: _fadeAnimation,
-              child: ScaleTransition(
-                scale: _scaleAnimation,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Logo image
-                    Image.asset(
-                      'assets/images/refinance.png',
-                      width: 200,
-                      height: 200,
-                      errorBuilder: (context, error, stackTrace) {
-                        // Fallback to icon if image not found
-                        return Icon(
-                          Icons.account_balance_wallet,
-                          size: 100,
-                          color: Theme.of(context).primaryColor,
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Refinance#',
-                      style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).primaryColor,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Kelola Keuangan Lebih Mudah',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: Colors.grey,
-                          ),
-                    ),
-                    const SizedBox(height: 48),
-                    const CircularProgressIndicator(),
-                  ],
-                ),
-              ),
-            );
-          },
+        child: Image.asset(
+          'assets/images/splash.gif',
+          width: 300,
         ),
       ),
     );
