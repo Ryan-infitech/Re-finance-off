@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/transaction_service.dart';
+import '../services/export_service.dart';
 import '../models/transaction_model.dart';
 import '../widgets/encrypted_image.dart';
 
@@ -139,6 +140,304 @@ class _ReportScreenState extends State<ReportScreen>
     return formatter.format(amount);
   }
 
+  void _showExportSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        String selectedPeriod = 'day';
+        DateTime exportStart = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+        DateTime exportEnd = DateTime.now();
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardTheme.color ??
+                    Theme.of(context).cardColor,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Handle
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Export Laporan',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Pilih periode dan format export',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Period selection
+                  const Text(
+                    'Periode',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildPeriodChip(
+                        'Hari Ini',
+                        'day',
+                        selectedPeriod,
+                        (val) {
+                          setSheetState(() {
+                            selectedPeriod = val;
+                            final now = DateTime.now();
+                            exportStart = DateTime(now.year, now.month, now.day);
+                            exportEnd = now;
+                          });
+                        },
+                      ),
+                      _buildPeriodChip(
+                        '7 Hari',
+                        'week',
+                        selectedPeriod,
+                        (val) {
+                          setSheetState(() {
+                            selectedPeriod = val;
+                            final now = DateTime.now();
+                            exportStart =
+                                now.subtract(const Duration(days: 6));
+                            exportStart = DateTime(
+                                exportStart.year,
+                                exportStart.month,
+                                exportStart.day);
+                            exportEnd = now;
+                          });
+                        },
+                      ),
+                      _buildPeriodChip(
+                        '30 Hari',
+                        'month',
+                        selectedPeriod,
+                        (val) {
+                          setSheetState(() {
+                            selectedPeriod = val;
+                            final now = DateTime.now();
+                            exportStart =
+                                now.subtract(const Duration(days: 29));
+                            exportStart = DateTime(
+                                exportStart.year,
+                                exportStart.month,
+                                exportStart.day);
+                            exportEnd = now;
+                          });
+                        },
+                      ),
+                      _buildPeriodChip(
+                        'Pilih Rentang',
+                        'custom',
+                        selectedPeriod,
+                        (val) async {
+                          final picked = await showDateRangePicker(
+                            context: context,
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime.now(),
+                            initialDateRange: DateTimeRange(
+                              start: exportStart,
+                              end: exportEnd,
+                            ),
+                          );
+                          if (picked != null) {
+                            setSheetState(() {
+                              selectedPeriod = val;
+                              exportStart = picked.start;
+                              exportEnd = picked.end;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${DateFormat('dd MMM yyyy').format(exportStart)} - ${DateFormat('dd MMM yyyy').format(exportEnd)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Format buttons
+                  const Text(
+                    'Format',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _exportData('pdf', exportStart, exportEnd);
+                          },
+                          icon: const Icon(Icons.picture_as_pdf, size: 20),
+                          label: const Text('PDF'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            foregroundColor: Colors.red.shade700,
+                            side: BorderSide(color: Colors.red.shade200),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _exportData('excel', exportStart, exportEnd);
+                          },
+                          icon: const Icon(Icons.table_chart, size: 20),
+                          label: const Text('Excel'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            foregroundColor: Colors.green.shade700,
+                            side: BorderSide(color: Colors.green.shade200),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(
+                      height: MediaQuery.of(context).viewInsets.bottom > 0
+                          ? 0
+                          : 8),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPeriodChip(
+    String label,
+    String value,
+    String selected,
+    Function(String) onTap,
+  ) {
+    final isSelected = value == selected;
+    return GestureDetector(
+      onTap: () => onTap(value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Theme.of(context).primaryColor
+              : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+            color: isSelected ? Colors.white : Colors.grey.shade700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportData(
+      String format, DateTime start, DateTime end) async {
+    // Show loading
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final allTransactions =
+          await TransactionService.instance.getTransactions();
+      final filtered = allTransactions.where((t) {
+        final d = DateTime.parse(t.date);
+        return d.isAfter(start.subtract(const Duration(days: 1))) &&
+            d.isBefore(end.add(const Duration(days: 1)));
+      }).toList();
+
+      if (format == 'pdf') {
+        await ExportService.instance.exportPdf(
+          transactions: filtered,
+          startDate: start,
+          endDate: end,
+        );
+      } else {
+        await ExportService.instance.exportExcel(
+          transactions: filtered,
+          startDate: start,
+          endDate: end,
+        );
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context); // dismiss loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Berhasil export ${format.toUpperCase()}',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // dismiss loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal export: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+
   String _formatCompact(double amount) {
     if (amount >= 1000000000) {
       return 'Rp ${(amount / 1000000000).toStringAsFixed(1)}M';
@@ -160,6 +459,11 @@ class _ReportScreenState extends State<ReportScreen>
         title: const Text('Laporan'),
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.file_download_outlined, size: 22),
+            onPressed: _showExportSheet,
+            tooltip: 'Export Laporan',
+          ),
           IconButton(
             icon: const Icon(Icons.calendar_month_outlined, size: 22),
             onPressed: _selectMonth,
